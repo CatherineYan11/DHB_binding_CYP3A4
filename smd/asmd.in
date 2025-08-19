@@ -1,1 +1,18 @@
+ASMD simulation
+ &cntrl
+   imin = 0, nstlim = 12000000, dt = 0.002,
+   ntx = 1, temp0 = 310.0,
+   ntr = 1, restraint_wt = 25, restraintmask = ":1-6,364-367",
+   ntt = 3, gamma_ln=5.0
+   ntc = 2, ntf = 2, ntb =1,
+   ntwx =  1000, ntwr = 12000000, ntpr = 1000,
+   cut = 8.0, ig=-1, ioutfm=1,
+   irest = 0, jar=1,
+ /
+ &wt type='DUMPFREQ', istep1=1000 /
+ &wt type='END'   /
+DISANG=dist.RST.dat.1
+DUMPAVE=asmd_1.work.dat.1
+LISTIN=POUT
+LISTOUT=POUT
 
