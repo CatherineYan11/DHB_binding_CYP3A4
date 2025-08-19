@@ -8,5 +8,4 @@ maxcyc=30000,
 ncyc=5000,
 ntmin=1,
 cut=10.0
-/
-~           
+/       
