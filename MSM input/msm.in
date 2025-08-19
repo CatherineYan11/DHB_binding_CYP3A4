@@ -11,7 +11,7 @@ import mdtraj
 from threading import Timer
 
 pdb = '../6OOB_in_noH.pdb'
-files = '../md_all_ASP192_align_0.1ns.xtc'
+files = '../md_all.xtc'
 feat = pyemma.coordinates.featurizer(pdb)
 
 pairs=([262,3911],
