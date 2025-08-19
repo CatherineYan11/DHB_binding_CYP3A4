@@ -1,1 +1,228 @@
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import numpy as np
+import pyemma
+from pyemma.util.contexts import settings
+import sys
+import shutil
+import os
+##import mdshare
+import mdtraj
+from threading import Timer
+
+pdb = '../6OOB_in_noH.pdb'
+files = '../md_all_ASP192_align_0.1ns.xtc'
+feat = pyemma.coordinates.featurizer(pdb)
+
+pairs=([262,3911],
+       [180,3914],
+      [428,3895],
+      [659,3911],
+      [643,3899],
+      [239,3903],
+      [1484,3911],
+      [1503,3911],
+      [2239,3911])
+
+feat.add_contacts(pairs,threshold=1,periodic=True)
+#feat.add_distances(pairs,periodic=False,indices2=None)
+##add com distance of DHB molecules
+feat.add_residue_COM([474])
+
+
+#add Fe and C26,C12,C06 of DHB distances
+pairs=([3895,3816],
+       [3901,3816],
+       [3915,3816])
+feat.add_distances(pairs,periodic=False,indices2=None)
+
+#add rmsd change of F'-F loop
+group_data = list(range(1459,1543))
+group = np.array(group_data)
+#group = [1461, 1469, 1480, 1491, 1499, 1510, 1518, 1529, 1533]
+
+
+feat.add_minrmsd_to_ref('../6OOB_in_noH.pdb',ref_frame=0,atom_indices=group)
+
+data = pyemma.coordinates.load(files, features=feat)
+
+#score_residue_mindist =  pyemma.coordinates.vamp(data[:-1], dim=2).score(test_data=data[:-1],score_method='VAMP2')
+
+
+#print('VAMP2-score xyz : {:f}'.format(score_residue_mindist))
+print('type of data:', type(data))
+print('shape of elements:', data[0].shape)
+print('n_atoms:', feat.topology.n_atoms)
+print(feat.describe())
+
+#score_heavy_atoms =  pyemma.coordinates.vamp(data[:-1], dim=2).score(test_data=data[:-1],score_method='VAMP2')
+#print('VAMP2-score xyz : {:f}'.format(score_heavy_atoms))
+
+lags = [200,400,500,600,1000,2000]
+
+fig, axes = plt.subplots(6, 3, figsize=(15, 30))
+for i, lag in enumerate(lags):
+    tica = pyemma.coordinates.tica(data, lag=lag, dim=2)
+    tica_concatenated = np.concatenate(tica.get_output())
+    pyemma.plots.plot_feature_histograms(
+        tica_concatenated,
+        ['IC {}'.format(i + 1) for i in range(tica.dimension())],
+        ax=axes[i, 0])
+    axes[i, 0].set_title('lag time = {} steps'.format(lag))
+    axes[i, 1].set_title(
+        'Density, actual dimension = {}'.format(tica.dimension()))
+    pyemma.plots.plot_density(
+        *tica_concatenated[:, :2].T, ax=axes[i, 1], cbar=False)
+    pyemma.plots.plot_free_energy(
+        *tica_concatenated[:, :2].T, ax=axes[i, 2], legacy=False)
+for ax in axes[:, 1:].flat:
+    ax.set_xlabel('IC 1')
+    ax.set_ylabel('IC 2')
+axes[0, 2].set_title('Pseudo free energy')
+#fig.tight_layout()
+plt.savefig('tica.png',dpi=300)
+
+
+tica = pyemma.coordinates.tica(data,lag=600,dim=2)
+tica_output = tica.get_output()
+tica_concatenated = np.concatenate(tica_output)
+
+
+
+#fig, axes = plt.subplots(2, 4, figsize=(12, 6))
+#for i, k in enumerate([200, 400, 600, 800]):
+#    cluster = pyemma.coordinates.cluster_kmeans(tica, k=k, max_iter=200, stride=5)
+#    pyemma.plots.plot_implied_timescales(
+#        pyemma.msm.its(cluster.dtrajs, lags=[1, 50, 100, 200, 300, 400, 500, 600, 800], nits=10, errors='bayes'),
+#        ax=axes[1, i], units='step')
+#    axes[1, i].set_ylim(1, 200000)
+##fig.tight_layout()
+#plt.savefig('its.png',dpi=300)
+#
+
+cluster = pyemma.coordinates.cluster_kmeans(tica, k=600, max_iter=100, stride=5)
+dtrajs_concatenated = np.concatenate(cluster.dtrajs)
+
+msm = pyemma.msm.bayesian_markov_model(cluster.dtrajs, lag=400, dt_traj='0.1 ns')
+print('fraction of states used = {:.2f}'.format(msm.active_state_fraction))
+print('fraction of counts used = {:.2f}'.format(msm.active_count_fraction))
+
+plt.plot(msm.timescales(),linewidth=0,marker='o')
+#fig.tight_layout()
+plt.savefig('timescale_spectral_analysis.png',dpi=300)
+
+nstates = 3
+cktest = msm.cktest(nstates, mlags=3)
+pyemma.plots.plot_cktest(cktest, dt=0.1, units='ns');
+#fig.tight_layout()
+plt.savefig('plot_cktest.png',dpi=300)
+
+fig, axes = plt.subplots(1, 2, figsize=(20, 4), sharex=True, sharey=True)
+pyemma.plots.plot_contour(
+    *tica_concatenated[:, :2].T,
+    msm.pi[dtrajs_concatenated],
+    ax=axes[0],
+    mask=True,
+    cbar_label='stationary distribution')
+pyemma.plots.plot_free_energy(
+    *tica_concatenated[:, :2].T,
+    weights=np.concatenate(msm.trajectory_weights()),
+    ax=axes[1],
+    legacy=False)
+for ax in axes.flat:
+    ax.set_xlabel('IC 1')
+axes[0].set_ylabel('IC 2')
+axes[0].set_title('Stationary distribution', fontweight='bold')
+axes[1].set_title('Reweighted free energy surface', fontweight='bold')
+#fig.tight_layout()
+plt.savefig('plot_energy.png',dpi=300)
+
+
+msm.pcca(nstates)
+fig, axes = plt.subplots(1, 3, figsize=(15, 3), sharex=True, sharey=True)
+for i, ax in enumerate(axes.flat):
+    pyemma.plots.plot_contour(
+        *tica_concatenated[:, :2].T,
+        msm.metastable_distributions[i][dtrajs_concatenated],
+        ax=ax,
+        cmap='afmhot_r',
+        mask=True,
+        cbar_label='metastable distribution {}'.format(i + 1))
+    ax.set_xlabel('IC 1')
+axes[0].set_ylabel('IC 2')
+#fig.tight_layout()
+plt.savefig('plot_nstates.png',dpi=300)
+
+
+metastable_traj = msm.metastable_assignments[dtrajs_concatenated]
+
+fig, ax = plt.subplots(figsize=(6, 4))
+_, _, misc = pyemma.plots.plot_state_map(
+    *tica_concatenated[:, :2].T, metastable_traj, ax=ax)
+ax.set_xlabel('IC 1')
+ax.set_ylabel('IC 2')
+misc['cbar'].set_ticklabels([r'$\mathcal{S}_%d$' % (i + 1)
+                             for i in range(nstates)])
+#fig.tight_layout()
+plt.savefig('plot_nstates2.png',dpi=300)
+
+
+
+
+pcca_samples = msm.sample_by_distributions(msm.metastable_distributions, 10)
+torsions_source = pyemma.coordinates.source(files, features=feat)
+pyemma.coordinates.save_trajs(
+    torsions_source,
+    pcca_samples,
+    outfiles=['./pcca{}_samples.pdb'.format(n + 1)
+              for n in range(msm.n_metastable)])
+
+from itertools import product
+mfpt = np.zeros((nstates, nstates))
+for i, j in product(range(nstates), repeat=2):
+    mfpt[i, j] = msm.mfpt(
+        msm.metastable_sets[i],
+        msm.metastable_sets[j])
+from pandas import DataFrame
+#mfpt = mfpt*0.1
+inverse_mfpt = np.zeros_like(mfpt)
+nz = mfpt.nonzero()
+inverse_mfpt[nz] = 1.0 / mfpt[nz]
+print('MFPT / ns:')
+DataFrame(np.round(mfpt, decimals=2), index=range(1, nstates + 1),
+columns=range(1, nstates + 1))
+
+
+
+state_labels=['0','1','2']
+highest_membership = msm.metastable_distributions.argmax(1)
+coarse_state_centers = cluster.clustercenters[msm.active_set[highest_membership]]
+fig, ax = plt.subplots(figsize=(30,25))
+metastable_traj = msm.metastable_assignments[dtrajs_concatenated]
+_, _, misc = pyemma.plots.plot_state_map(
+    *tica_concatenated[:, :2].T, metastable_traj, ax=ax, alpha =0.6, zorder=-1)
+ax.set_xlabel('IC 1')
+ax.set_ylabel('IC 2')
+misc['cbar'].set_ticklabels([r'$\mathcal{S}_%d$' % (i + 1)
+                             for i in range(nstates)])
+pyemma.plots.plot_network(
+    inverse_mfpt,
+    pos=coarse_state_centers[:,:2],
+    arrow_label_format='%.1f ns',
+    arrow_labels=mfpt,
+    arrow_scale=1.5,
+    #figpadding=0.15,
+    max_width=15,
+    max_height=10,
+    ax=ax,
+    state_labels=range(1, nstates + 1),
+    state_sizes=np.array([0.00001,0.000002,0.000002]))
+    #size=10,alpha=1);
+ax.set_xlabel('tica1')
+ax.set_ylabel('tica2')
+ax.set_xlim(tica_concatenated[:,0].min(), tica_concatenated[:,0].max())
+ax.set_ylim(tica_concatenated[:,1].min(), tica_concatenated[:,1].max())
+plt.savefig("invMFPT.png",dpi=300)
+
+
 
