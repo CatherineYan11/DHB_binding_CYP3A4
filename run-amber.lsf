@@ -1,0 +1,30 @@
+#!/bin/bash
+#
+#BSUB -J AmberMini-MPI
+#BSUB -o stdout_%J.out
+#BSUB -e stderr_%J.err
+#BSUB -n 4
+#BSUB -R span[ptile=4]
+#BSUB -q q2080
+#BSUB -gpu num=1
+
+module load cmake/3.15.5 gcc/8.3.0 mpi/openmpi/4.0.3_8.3.0gcc fftw/3.3.8-8.3.0gcc netcdf-c/4.7.4-gcc-8.3.0 cuda/12.0
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/share/home/grp-hiraoh/junfangyan/Soft/OpenBLAS
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda-12.0/lib64
+
+
+
+#/share/home/grp-hiraoh/apps/amber/amber20/bin/pmemd.cuda -O -i em.in -p New.tleap.top -c New.tleap.inpcrd -o new.em.out -r new.em.rst -inf new.em.mdinfo
+#/share/home/grp-hiraoh/apps/amber/amber20/bin/pmemd.cuda -O -i nvt.in -p New.tleap.top -c new.em.rst -ref new.em.rst -o new.nvt.out -x new.nvt.crd -r new.nvt.rst -inf new.nvt.mdinfo
+#/share/home/grp-hiraoh/apps/amber/amber20/bin/pmemd.cuda -O -i npt.in -p New.tleap.top -c new.nvt.rst -ref new.nvt.rst -o new.npt.out -x new.npt.crd -r new.npt.rst -inf new.npt.mdinfo
+#/share/home/grp-hiraoh/apps/amber/amber20/bin/pmemd.cuda -O -i pre_md.in -p New.tleap.top -c new.npt.rst -ref new.npt.rst -o new.pre_md.out -x new.pre_md.crd -r new.pre_md.rst -inf new.pre_md.mdinfo
+#/share/home/grp-hiraoh/apps/amber/amber20/bin/pmemd.cuda -O -i md.in -p New.tleap.top -c new.pre_md.rst -ref new.pre_md.rst -o new.md.out -x new.md.crd -r new.md.rst -inf new.md.mdinfo
+#/share/home/grp-hiraoh/apps/amber/amber20/bin/pmemd.cuda -O -i md.in -p New.tleap.top -c new.md.rst -ref new.md.rst -o new.md01.out -x new.md01.crd -r new.md01.rst -inf new.md01.mdinfo
+#/share/home/grp-hiraoh/apps/amber/amber20/bin/pmemd.cuda -O -i md.in -p New.tleap.top -c new.md03.rst -ref new.md03.rst -o new.md04.out -x new.md04.crd -r new.md04.rst -inf new.md04.mdinfo
+#pmemd.cuda -O -i md.in -p New.tleap.top -c new.md06.rst -ref new.md06.rst -o new.md07.out -x new.md07.crd -r new.md07.rst -inf new.md07.mdinfo
+pmemd.cuda -O -i md.in -p New.tleap.top -c new.md31.rst -ref new.md31.rst -o new.md32.out -x new.md32.crd -r new.md32.rst -inf new.md32.mdinfo
+pmemd.cuda -O -i md.in -p New.tleap.top -c new.md32.rst -ref new.md32.rst -o new.md33.out -x new.md33.crd -r new.md33.rst -inf new.md33.mdinfo
+pmemd.cuda -O -i md.in -p New.tleap.top -c new.md33.rst -ref new.md33.rst -o new.md34.out -x new.md34.crd -r new.md34.rst -inf new.md34.mdinfo
+pmemd.cuda -O -i md.in -p New.tleap.top -c new.md34.rst -ref new.md34.rst -o new.md35.out -x new.md35.crd -r new.md35.rst -inf new.md35.mdinfo
+
+
